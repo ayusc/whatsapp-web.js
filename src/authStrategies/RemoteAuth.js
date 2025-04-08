@@ -104,11 +104,17 @@ class RemoteAuth extends BaseAuthStrategy {
         if (pathExists) {
             await this.compressSession();
             await this.store.save({session: this.sessionName});
-            await fs.promises.unlink(`${this.sessionName}.zip`);
+
+            const zipPath = `${this.sessionName}.zip`;
+            if (await this.isValidPath(zipPath)) {
+                await fs.promises.unlink(zipPath);
+            }
+
             await fs.promises.rm(`${this.tempDir}`, {
                 recursive: true,
                 force: true
             }).catch(() => {});
+        
             if(options && options.emit) this.client.emit(Events.REMOTE_SESSION_SAVED);
         }
     }
@@ -128,7 +134,7 @@ class RemoteAuth extends BaseAuthStrategy {
             await this.unCompressSession(compressedSessionPath);
         } else {
             fs.mkdirSync(this.userDataDir, { recursive: true });
-        }
+       }
     }
 
     async deleteRemoteSession() {
