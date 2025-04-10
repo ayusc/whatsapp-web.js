@@ -113,11 +113,10 @@ class RemoteAuth extends BaseAuthStrategy {
             // Delete the local zip file after successful upload
             await fs.promises.unlink(zipPath);
         } catch (error) {
-            console.error('❌ Failed to store remote session:', error.message);
-            // Optionally handle the error, e.g., retry logic
+            console.error(error.message);
         }
     } else {
-        console.warn(`⚠️ Zip file ${zipPath} was not created successfully.`);
+        console.warn(`Zip file ${zipPath} was not created successfully.`);
     }
 
     // Clean up temporary directory
@@ -143,12 +142,12 @@ class RemoteAuth extends BaseAuthStrategy {
                 // Uncompress the session
                 await this.unCompressSession(compressedSessionPath);
             } catch (error) {
-                console.error('❌ Failed to unzip session:', error.message);
+                console.error('Failed to unzip session:', error.message);
                 // Optionally delete the corrupted zip file
                 await fs.promises.unlink(compressedSessionPath).catch(() => {});
             }
         } else {
-            console.warn(`⚠️ Zip file ${compressedSessionPath} not found after extraction.`);
+            console.warn(`Zip file ${compressedSessionPath} not found after extraction.`);
         }
     } else {
         // Create the user data directory if no remote session exists
