@@ -113,7 +113,7 @@ class RemoteAuth extends BaseAuthStrategy {
             // Delete the local zip file after successful upload
             await fs.promises.unlink(zipPath);
         } catch (error) {
-            console.error(error.message);
+            // Fail Silently
         }
     } else {
         console.warn(`Zip file ${zipPath} was not created successfully.`);
