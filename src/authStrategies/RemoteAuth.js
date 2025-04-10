@@ -99,42 +99,61 @@ class RemoteAuth extends BaseAuthStrategy {
     }
 
     async storeRemoteSession(options) {
-        /* Compress & Store Session */
-        const pathExists = await this.isValidPath(this.userDataDir);
-        if (pathExists) {
-            await this.compressSession();
-            await this.store.save({session: this.sessionName});
+    const zipPath = `${this.sessionName}.zip`;
 
-            const zipPath = `${this.sessionName}.zip`;
-            if (await this.isValidPath(zipPath)) {
-                await fs.promises.unlink(zipPath);
-            }
+    // Compress the session
+    await this.compressSession();
 
-            await fs.promises.rm(`${this.tempDir}`, {
-                recursive: true,
-                force: true
-            }).catch(() => {});
-        
-            if(options && options.emit) this.client.emit(Events.REMOTE_SESSION_SAVED);
+    // Check if the zip file was created successfully
+    if (await this.isValidPath(zipPath)) {
+        try {
+            // Save the compressed session remotely
+            await this.store.save({ session: this.sessionName });
+
+            // Delete the local zip file after successful upload
+            await fs.promises.unlink(zipPath);
+        } catch (error) {
+            console.error('❌ Failed to store remote session:', error.message);
+            // Optionally handle the error, e.g., retry logic
         }
+    } else {
+        console.warn(`⚠️ Zip file ${zipPath} was not created successfully.`);
+    }
+
+    // Clean up temporary directory
+    await fs.promises.rm(this.tempDir, { recursive: true, force: true }).catch(() => {});
+
+    // Emit event if specified
+    if (options && options.emit) {
+        this.client.emit(Events.REMOTE_SESSION_SAVED);
+    }
     }
 
     async extractRemoteSession() {
-        const pathExists = await this.isValidPath(this.userDataDir);
-        const compressedSessionPath = `${this.sessionName}.zip`;
-        const sessionExists = await this.store.sessionExists({session: this.sessionName});
-        if (pathExists) {
-            await fs.promises.rm(this.userDataDir, {
-                recursive: true,
-                force: true
-            }).catch(() => {});
-        }
-        if (sessionExists) {
-            await this.store.extract({session: this.sessionName, path: compressedSessionPath});
-            await this.unCompressSession(compressedSessionPath);
+    const compressedSessionPath = `${this.sessionName}.zip`;
+
+    // Check if the remote session exists
+    if (await this.store.sessionExists({ session: this.sessionName })) {
+        // Extract the session from the remote store
+        await this.store.extract({ session: this.sessionName, path: compressedSessionPath });
+
+        // Verify the zip file exists and is valid
+        if (await this.isValidPath(compressedSessionPath)) {
+            try {
+                // Uncompress the session
+                await this.unCompressSession(compressedSessionPath);
+            } catch (error) {
+                console.error('❌ Failed to unzip session:', error.message);
+                // Optionally delete the corrupted zip file
+                await fs.promises.unlink(compressedSessionPath).catch(() => {});
+            }
         } else {
-            fs.mkdirSync(this.userDataDir, { recursive: true });
-       }
+            console.warn(`⚠️ Zip file ${compressedSessionPath} not found after extraction.`);
+        }
+    } else {
+        // Create the user data directory if no remote session exists
+        await fs.promises.mkdir(this.userDataDir, { recursive: true });
+    }
     }
 
     async deleteRemoteSession() {
