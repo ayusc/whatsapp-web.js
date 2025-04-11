@@ -99,34 +99,45 @@ class RemoteAuth extends BaseAuthStrategy {
     }
 
     async storeRemoteSession(options) {
-    const zipPath = `${this.sessionName}.zip`;
+    const finalZipPath = `${this.sessionName}.zip`;
+    const partialZipPath = `${this.sessionName}.zip.partial`;
+
+    // Delete any leftover .partial file from a crash
+    if (await this.isValidPath(partialZipPath)) {
+        await fs.promises.unlink(partialZipPath).catch(() => {});
+    }
 
     // Compress the session
     await this.compressSession();
 
-    // Check if the zip file was created successfully
-    if (await this.isValidPath(zipPath)) {
+    // Ensure the zip file was created successfully
+    if (await this.isValidPath(finalZipPath)) {
         try {
-            // Save the compressed session remotely
-            await this.store.save({ session: this.sessionName });
+            // Upload the zip file to the remote store
+            await this.store.save({
+                session: this.sessionName,
+                path: finalZipPath  // or stream, depending on your implementation
+            });
 
-            // Delete the local zip file after successful upload
-            await fs.promises.unlink(zipPath);
+            // Delete the zip file after successful remote upload
+            await fs.promises.unlink(finalZipPath);
         } catch (error) {
-            // Fail Silently
+            console.error('Remote session save failed:', error.message);
+            // Optionally keep the zip to retry later
         }
     } else {
-        console.warn(`Zip file ${zipPath} was not created successfully.`);
+        console.warn(`Zip file ${finalZipPath} was not created successfully.`);
     }
 
-    // Clean up temporary directory
+    // Clean up temporary session directory
     await fs.promises.rm(this.tempDir, { recursive: true, force: true }).catch(() => {});
 
-    // Emit event if specified
+    // Emit saved event
     if (options && options.emit) {
         this.client.emit(Events.REMOTE_SESSION_SAVED);
     }
-    }
+}
+
 
     async extractRemoteSession() {
     const compressedSessionPath = `${this.sessionName}.zip`;
@@ -161,22 +172,33 @@ class RemoteAuth extends BaseAuthStrategy {
     }
 
     async compressSession() {
-        const archive = archiver('zip');
-        const stream = fs.createWriteStream(`${this.sessionName}.zip`);
+    const tempZipPath = `${this.sessionName}.zip.partial`;
+    const finalZipPath = `${this.sessionName}.zip`;
+    const archive = archiver('zip');
+    const stream = fs.createWriteStream(tempZipPath);
 
-        await fs.copy(this.userDataDir, this.tempDir).catch(() => {});
-        await this.deleteMetadata();
-        return new Promise((resolve, reject) => {
-            archive
-                .directory(this.tempDir, false)
-                .on('error', err => reject(err))
-                .pipe(stream);
+    // Copy the session to a temporary directory and clean unnecessary files
+    await fs.copy(this.userDataDir, this.tempDir).catch(() => {});
+    await this.deleteMetadata();
 
-            stream.on('close', () => resolve());
-            archive.finalize();
+    return new Promise((resolve, reject) => {
+        archive
+            .directory(this.tempDir, false)
+            .on('error', err => reject(err))
+            .pipe(stream);
+
+        stream.on('close', async () => {
+            try {
+                await fs.promises.rename(tempZipPath, finalZipPath);
+                resolve();
+            } catch (err) {
+                reject(err);
+            }
         });
-    }
 
+        archive.finalize();
+    });
+}
     async unCompressSession(compressedSessionPath) {
         await new Promise((resolve, reject) => {
             var zip = new AdmZip(compressedSessionPath);
