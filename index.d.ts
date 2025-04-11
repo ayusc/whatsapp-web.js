@@ -132,6 +132,9 @@ declare namespace WAWebJS {
         /** Send a message to a specific chatId */
         sendMessage(chatId: string, content: MessageContent, options?: MessageSendOptions): Promise<Message>
         
+        /** Send a Large media to a specific chatId */
+        sendLargeMedia(filePath: string, chatId: string, options?: MessageSendOptions): Promise<Message>
+
         /** Searches for messages */
         searchMessages(query: string, options?: { chatId?: string, page?: number, limit?: number }): Promise<Message[]>
 

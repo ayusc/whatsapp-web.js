@@ -24,7 +24,7 @@ exports.LoadUtils = () => {
 
     };
 
-    window.WWebJS.sendMessage = async (chat, content, options = {}) => {
+    window.WWebJS.sendMessage = async (chat, content, options = {}, sendSeen, largeMedia = null) => {
         let attOptions = {};
         if (options.attachment) {
             attOptions = options.sendMediaAsSticker
@@ -41,6 +41,20 @@ exports.LoadUtils = () => {
 
             delete options.attachment;
             delete options.sendMediaAsSticker;
+        }
+        
+        console.log(largeMedia);
+        if(largeMedia && largeMedia !== null) {
+            attOptions = await window.WWebJS.processMediaData(
+                { data: largeMedia.chunksLocator, mimetype: largeMedia.mimetype, filename: largeMedia.filename }, 
+                {
+                    forceVoice: options.sendAudioAsVoice,
+                    forceDocument: options.sendMediaAsDocument,
+                    forceGif: options.sendVideoAsGif
+                }, true
+            );
+            largeMedia = '';
+            console.log('Point 2')
         }
         let quotedMsgOptions = {};
         if (options.quotedMessageId) {
@@ -347,17 +361,24 @@ exports.LoadUtils = () => {
         return stickerInfo;
     };
 
-    window.WWebJS.processMediaData = async (mediaInfo, { forceVoice, forceDocument, forceGif }) => {
-        const file = window.WWebJS.mediaInfoToFile(mediaInfo);
+    window.WWebJS.processMediaData = async (mediaInfo, { forceVoice, forceDocument, forceGif }, isLargeFile = false) => {
+        const file = window.WWebJS.mediaInfoToFile(mediaInfo, isLargeFile);
+        console.log('Point 5')
         const mData = await window.Store.OpaqueData.createFromData(file, file.type);
+        console.log('Point 6')
         const mediaPrep = window.Store.MediaPrep.prepRawMedia(mData, { asDocument: forceDocument });
+        console.log('Point 7');
+        console.dir(mediaPrep,{depth: null})
         const mediaData = await mediaPrep.waitForPrep();
+        console.log('Point 8')
         const mediaObject = window.Store.MediaObject.getOrCreateMediaObject(mediaData.filehash);
+        console.log('Point 9')
 
         const mediaType = window.Store.MediaTypes.msgToMediaType({
             type: mediaData.type,
             isGif: mediaData.isGif
         });
+        console.log('Point 10')
 
         if (forceVoice && mediaData.type === 'audio') {
             mediaData.type = 'ptt';
@@ -369,6 +390,7 @@ exports.LoadUtils = () => {
         if (forceGif && mediaData.type === 'video') {
             mediaData.isGif = true;
         }
+        console.log('Point 11')
 
         if (forceDocument) {
             mediaData.type = 'document';
@@ -381,17 +403,20 @@ exports.LoadUtils = () => {
         mediaData.renderableUrl = mediaData.mediaBlob.url();
         mediaObject.consolidate(mediaData.toJSON());
         mediaData.mediaBlob.autorelease();
+        console.log('Point 12')
 
         const uploadedMedia = await window.Store.MediaUpload.uploadMedia({
             mimetype: mediaData.mimetype,
             mediaObject,
             mediaType
         });
+        console.log('Point 13')
 
         const mediaEntry = uploadedMedia.mediaEntry;
         if (!mediaEntry) {
             throw new Error('upload failed: media entry was not created');
         }
+        console.log('Point 14')
 
         mediaData.set({
             clientUrl: mediaEntry.mmsUrl,
@@ -406,6 +431,7 @@ exports.LoadUtils = () => {
             streamingSidecar: mediaEntry.sidecar,
             firstFrameSidecar: mediaEntry.firstFrameSidecar
         });
+        console.log('Point 6')
 
         return mediaData;
     };
@@ -561,7 +587,8 @@ exports.LoadUtils = () => {
         return contacts.map(contact => window.WWebJS.getContactModel(contact));
     };
 
-    window.WWebJS.mediaInfoToFile = ({ data, mimetype, filename }) => {
+    window.WWebJS.mediaInfoToFile = ({ data, mimetype, filename }, isLargeFile) => {
+        if(isLargeFile) data = window.Store[data]
         const binaryData = window.atob(data);
 
         const buffer = new ArrayBuffer(binaryData.length);
@@ -571,6 +598,7 @@ exports.LoadUtils = () => {
         }
 
         const blob = new Blob([buffer], { type: mimetype });
+        console.log('Point 4')
         return new File([blob], filename, {
             type: mimetype,
             lastModified: Date.now()
