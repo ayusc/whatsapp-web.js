@@ -119,11 +119,8 @@ class RemoteAuth extends BaseAuthStrategy {
                 path: finalZipPath  // or stream, depending on your implementation
             });
 
-            // Delete the zip file after successful remote upload
-            await fs.promises.unlink(finalZipPath);
         } catch (error) {
-            console.error('Remote session save failed:', error.message);
-            // Optionally keep the zip to retry later
+            console.error(error.message);
         }
     } else {
         console.warn(`Zip file ${finalZipPath} was not created successfully.`);
