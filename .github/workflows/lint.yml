@@ -1,36 +1,35 @@
 name: Lint
 
 on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 jobs:
-  eslint:
-    name: ESLint
+  run-linters:
+    name: Run linters
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
+      - name: Check out Git repository
+        uses: actions/checkout@v4
 
-      - name: Install node v14
-        uses: actions/setup-node@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v1
         with:
-          node-version: '14'
+          node-version: 12
 
-      - name: Install dependencies
-        run: npm install
+      # ESLint and Prettier must be in `package.json`
+      - name: Install Node.js dependencies
+        run: npm ci
 
-      - name: Run ESLint (auto-fix)
-        run: npx eslint . --fix --no-ignore
-
-      - name: Run ESLint
-        run: ./node_modules/.bin/eslint .
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "fix: apply ESLint auto-fixes"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run linters
+        uses: wearerequired/lint-action@v2
+        with:
+          eslint: true
+          prettier: true
