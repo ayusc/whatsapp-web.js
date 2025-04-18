@@ -49,6 +49,11 @@
     "sinon": "^13.0.1",
     "prettier": "latest"
   },
+  "prettier": {
+    "arrowParens": "avoid",
+    "singleQuote": true,
+    "trailingComma": "es5"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
